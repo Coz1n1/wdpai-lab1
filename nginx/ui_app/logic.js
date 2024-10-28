@@ -3,6 +3,7 @@ const url = "http://localhost:8000";
 async function getItems() {
   try {
     const res = await axios.get(url);
+    console.log(res.data);
     const users = res.data.user_list;
     displayUsers(users);
   } catch (error) {

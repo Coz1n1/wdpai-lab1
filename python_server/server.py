@@ -1,20 +1,38 @@
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Type
+import psycopg2
+import os
+import time
 
+DB_HOST = os.environ.get('DB_HOST', 'postgres')
+DB_PORT = int(os.environ.get('DB_PORT', 5432))
+DB_NAME = os.environ.get('DB_NAME', 'mydb')
+DB_USER = os.environ.get('DB_USER', 'dbuser')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'dbpassword')
+
+def connect_to_db():
+    while True:
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD
+            )
+            print("Połączono z bazą danych")
+            return conn
+        except psycopg2.OperationalError:
+            print("Błąd połączenia z bazą danych, ponawianie za 5 sekund...")
+            time.sleep(5)
+
+conn = connect_to_db()
+cursor = conn.cursor()
 
 # Define the request handler class by extending BaseHTTPRequestHandler.
 # This class will handle HTTP requests that the server receives.
 class SimpleRequestHandler(BaseHTTPRequestHandler):
-
-    user_list = [{
-        'first_name': 'Testowy',
-        'last_name': 'Test',
-        'role': 'instructor',
-        'id': 1
-    }]
-    pomId = 1
-
     # Handle OPTIONS requests (used in CORS preflight checks).
     # CORS (Cross-Origin Resource Sharing) is a mechanism that allows restricted resources
     # on a web page to be requested from another domain outside the domain from which the resource originated.
@@ -50,17 +68,33 @@ class SimpleRequestHandler(BaseHTTPRequestHandler):
         # Finish sending headers
         self.end_headers()
 
+        self.user_list = self.get_users()
         # Prepare the response data, which will be returned in JSON format.
         # The response contains a simple message and the path of the request.
         response: dict = {
             "message": "User list",
             "user_list": self.user_list
         }
-
         # Convert the response dictionary to a JSON string and send it back to the client.
         # `self.wfile.write()` is used to send the response body.
         self.wfile.write(json.dumps(response).encode())
 
+    def get_users(self):
+        try:
+            cursor.execute("SELECT id,first_name,last_name,role FROM users")
+            rows = cursor.fetchall()
+
+            users = [{
+                "id": row[0],
+                "first_name": row[1],
+                "last_name": row[2],
+                "role": row[3]
+            } for row in rows]
+            return users
+
+        except Exception as e:
+            print("Error:", e)
+            return []
     # Handle POST requests.
     # This method is called when the client sends a POST request.
     def do_POST(self) -> None:
